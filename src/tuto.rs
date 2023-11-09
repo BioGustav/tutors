@@ -1,41 +1,70 @@
 use std::path::PathBuf;
+
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+mod tutorslib;
+
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author = "T. Pilz")]
+#[command(version = "1.0")]
+#[command(about = "", long_about = None)]
 struct Cli {
     /// Turn debugging information on
-    #[arg(short, long, action = clap::ArgAction::Count)]
-    debug: u8,
+    #[arg(short, long, action = clap::ArgAction::SetTrue)]
+    debug: bool,
 
     #[command(subcommand)]
-    command: Option<Commands>,
+    command: Commands,
 }
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    Zip,
-    /// Unzip containers recursively
+    Zip {
+        #[arg(short, long)]
+        name: Option<String>,
+        #[arg(default_value = ".")]
+        paths: Vec<PathBuf>,
+    },
+    /// Unzip outer and inner containers
     Unzip {
-        #[arg(value_name = "FILE")]
-        file_path: PathBuf,
-
-        /// unzip only uppermost zip
+        path: PathBuf,
+        /// unzip only outermost zip
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         single: bool,
+        /// Specify the target directory [default: ./<FILE_NAME>]
+        #[arg(short, long)]
+        target: Option<PathBuf>,
     },
-    Count,
+    Count {
+        #[arg(short, long, default_value = ".")]
+        path: PathBuf,
+    },
     Stats,
 }
 
-fn main() {
+#[allow(unused)]
+fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    match cli.command {
-        Some(Commands::Unzip {file_path, single}) => {
-            println!("{:?}, {:?}", file_path, single)
-        }
-        Some(_) => {}
-        None => {}
+    if cli.debug {
+        dbg!(&cli.command);
     }
+
+    match cli.command {
+        Commands::Zip { name, paths } => tutorslib::zipit(name, paths),
+        Commands::Unzip {
+            path,
+            single,
+            target,
+        } => tutorslib::unzip(&path, single, target),
+        Commands::Count { path} => tutorslib::count(&path),
+        Commands::Stats => tutorslib::stats(),
+    }
+}
+
+#[test]
+fn verify_cli() {
+    use clap::CommandFactory;
+    Cli::command().debug_assert()
 }
