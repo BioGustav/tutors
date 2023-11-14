@@ -39,6 +39,11 @@ enum Commands {
     Count {
         #[arg(short, long, default_value = ".")]
         path: PathBuf,
+        #[arg(short, long, default_value = ".")]
+        target_dir: PathBuf,
+        /// maximum points for the assignment [default = 25]
+        #[arg(short, long)]
+        max_points: Option<u8>,
     },
     Stats,
 }
@@ -58,7 +63,11 @@ fn main() -> Result<()> {
             single,
             target,
         } => tutorslib::unzip(&path, single, target),
-        Commands::Count { path} => tutorslib::count(&path),
+        Commands::Count {
+            path,
+            target_dir,
+            max_points,
+        } => tutorslib::count(&path, &target_dir, &max_points),
         Commands::Stats => tutorslib::stats(),
     }
 }

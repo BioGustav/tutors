@@ -1,10 +1,10 @@
-#![allow(unused_variables)]
-
-use std::fs::File;
+use std::fs::{create_dir, File};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 use zip::ZipArchive;
 
@@ -57,10 +57,68 @@ pub fn stats() -> Result<()> {
     todo!()
 }
 
-pub fn count(path: &Path) -> Result<()> {
+const DEFAULT_MAX_POINTS: u8 = 25;
+const TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
+const NAME_PATTERN: &str = r"([^\d_]*)";
 
+pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>) -> Result<()> {
+    //dbg!(&path, max_points);
+    let max_points = match max_points {
+        Some(points) => points,
+        None => &DEFAULT_MAX_POINTS,
+    };
 
+    if !target_dir.exists() {
+        create_dir(target_dir)?;
+    }
 
+    let name_re = Regex::new(NAME_PATTERN)?;
+
+    let folders = WalkDir::new(path).max_depth(1).into_iter();
+    let mut result = File::create(target_dir.join("result.csv"))?;
+
+    for folder in folders.flatten() {
+        let folder = folder.path();
+        let folder_name = match folder.file_stem() {
+            Some(name) => name.to_str().unwrap(),
+            None => continue,
+        };
+        let name = name_re
+            .captures(folder_name)
+            .unwrap()
+            .get(1)
+            .unwrap()
+            .as_str();
+
+        let file_walker = WalkDir::new(folder).into_iter();
+        let mut points = *max_points as f32;
+        for dir in file_walker.flatten() {
+            if dir.path().extension().is_some_and(|ext| ext.eq("java")) {
+                let file = File::open(dir.path())?;
+                let file = BufReader::new(file);
+
+                points -= calculate_deduction(file)?;
+            }
+        }
+        points = if points < 0. { 0. } else { points };
+        result.write_all(format!("{},{}\n", name, points).as_bytes())?;
+    }
 
     Ok(())
+}
+
+fn calculate_deduction(file: BufReader<File>) -> Result<f32> {
+    let tut_re = Regex::new(TUTOR_PATTERN)?;
+    let mut result = 0f32;
+
+    for line in file.lines().map_while(Result::ok) {
+        tut_re.captures_iter(&line).for_each(|cap| {
+            if let Some(deduction) = cap.get(2) {
+                let deduction = deduction.as_str().parse::<f32>().unwrap_or(0.);
+                result += deduction;
+            }
+        });
+    }
+
+    Ok(result)
 }
