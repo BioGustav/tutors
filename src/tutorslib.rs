@@ -8,33 +8,38 @@ use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 use zip::ZipArchive;
 
-pub fn unzip(path: &Path, single: bool, target: Option<PathBuf>) -> Result<()> {
+pub fn unzip(path: &PathBuf, single: bool, target: Option<&PathBuf>, debug: bool) -> Result<()> {
     //dbg!(&path, &single, &target);
 
-    let file_name = path.file_stem().unwrap();
+    let file_name = Path::new(".").join(path.file_stem().unwrap());
     let target = match target {
-        Some(path_buf) => path_buf,
-        None => Path::new(".").join(file_name),
+        Some(path_buf) => path_buf.as_path(),
+        None => &file_name,
     };
 
     let mut archive = ZipArchive::new(File::open(path)?)?;
-    archive.extract(&target)?;
+    archive.extract(target)?;
 
     // No more work to be done in single mode
     if single {
         return Ok(());
     }
 
-    let walkdir = WalkDir::new(&target).into_iter();
+    let walkdir = WalkDir::new(target).into_iter();
 
     for entry in walkdir.flatten() {
         if is_zip_file(&entry) {
-            let path = entry.path();
+            let path = entry.path().to_path_buf();
             let parent = path.parent().unwrap();
             let target = parent.join(Path::new("korrektur"));
 
-            unzip(path, true, Some(target))?;
+            if debug {
+                log("Unzipping", vec![("path", target.to_str().unwrap_or(""))]);
+            }
+
+            unzip(&path, true, Some(&target), debug)?;
             std::fs::remove_file(path)?;
+            cleanup_dirs(target.as_path(), None, debug)?;
         }
     }
 
@@ -49,7 +54,60 @@ fn is_zip_file(entry: &DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-pub fn zipit(name: Option<String>, paths: Vec<PathBuf>) -> Result<()> {
+fn cleanup_dirs(path: &Path, to: Option<&Path>, debug: bool) -> Result<()> {
+    let walkdir = WalkDir::new(path)
+        .max_depth(1)
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.path().is_dir())
+        .skip(1); // Skip the root directory
+
+    for entry in walkdir {
+        if entry.path().ends_with("__MACOSX") {
+            if debug {
+                log(
+                    "Removing",
+                    vec![("path", entry.path().to_str().unwrap_or(""))],
+                );
+            }
+            std::fs::remove_dir_all(entry.path())?;
+        } else {
+            let to = match to {
+                Some(path) => path,
+                None => entry.path().parent().unwrap_or(Path::new("/")),
+            };
+            cleanup_dirs(entry.path(), Some(to), debug)?;
+            move_files(entry.path(), to, debug)?;
+            std::fs::remove_dir_all(entry.path())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn move_files(path: &Path, to: &Path, debug: bool) -> Result<()> {
+    WalkDir::new(path)
+        .max_depth(1)
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.path().is_file())
+        .for_each(|entry| {
+            let from = entry.path();
+            std::fs::copy(from, to.join(entry.file_name())).unwrap();
+            if debug {
+                log(
+                    "Moving",
+                    vec![
+                        ("from", from.to_str().unwrap_or("")),
+                        ("to", to.to_str().unwrap_or("")),
+                    ],
+                );
+            }
+        });
+    Ok(())
+}
+
+pub fn zipit(_name: Option<String>, _paths: Vec<PathBuf>) -> Result<()> {
     todo!()
 }
 
@@ -61,7 +119,7 @@ const DEFAULT_MAX_POINTS: u8 = 25;
 const TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
 const NAME_PATTERN: &str = r"([^\d_]*)";
 
-pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>) -> Result<()> {
+pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>, _debug: bool) -> Result<()> {
     //dbg!(&path, max_points);
     let max_points = match max_points {
         Some(points) => points,
@@ -121,4 +179,14 @@ fn calculate_deduction(file: BufReader<File>) -> Result<f32> {
     }
 
     Ok(result)
+}
+
+fn log(command: &str, args: Vec<(&str, &str)>) {
+    let mut prefix = "";
+    let args = args.iter().fold(String::new(), |mut acc, (key, value)| {
+        acc.push_str(&format!("{}{}: {}", prefix, key, value));
+        prefix = ", ";
+        acc
+    });
+    println!("{:9}: {}", command, args);
 }

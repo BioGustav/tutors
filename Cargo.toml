@@ -7,11 +7,13 @@ edition = "2021"
 name = "tutors"
 path = "src/tuto.rs"
 
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.75"
-clap = { version = "4.4.7", features = ["derive"] }
+clap = { version = "4.4.10", features = ["derive"] }
 regex = "1.10.2"
 walkdir = "2.4.0"
 zip = "0.6.6"
+zip-extensions = "0.6.2"

@@ -53,7 +53,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if cli.debug {
-        dbg!(&cli.command);
+        println!("{:?}", &cli.command);
     }
 
     match cli.command {
@@ -62,12 +62,12 @@ fn main() -> Result<()> {
             path,
             single,
             target,
-        } => tutorslib::unzip(&path, single, target),
+        } => tutorslib::unzip(&path, single, target.as_ref(), cli.debug),
         Commands::Count {
             path,
             target_dir,
             max_points,
-        } => tutorslib::count(&path, &target_dir, &max_points),
+        } => tutorslib::count(&path, &target_dir, &max_points, cli.debug),
         Commands::Stats => tutorslib::stats(),
     }
 }
