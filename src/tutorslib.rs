@@ -90,7 +90,15 @@ fn move_files(path: &Path, to: &Path, debug: bool) -> Result<()> {
         .max_depth(1)
         .into_iter()
         .flatten()
-        .filter(|entry| entry.path().is_file())
+        .filter(|entry| {
+            entry.path().is_file()
+                && !entry
+                    .file_name()
+                    .to_str()
+                    .unwrap_or("")
+                    .to_lowercase()
+                    .eq(".ds_store")
+        })
         .for_each(|entry| {
             let from = entry.path();
             std::fs::copy(from, to.join(entry.file_name())).unwrap();
