@@ -72,10 +72,7 @@ fn cleanup_dirs(path: &Path, to: Option<&Path>, debug: bool) -> Result<()> {
             }
             std::fs::remove_dir_all(entry.path())?;
         } else {
-            let to = match to {
-                Some(path) => path,
-                None => entry.path().parent().unwrap_or(Path::new("/")),
-            };
+            let to = to.unwrap_or_else(|| entry.path().parent().unwrap_or(Path::new("/")));
             cleanup_dirs(entry.path(), Some(to), debug)?;
             move_files(entry.path(), to, debug)?;
             std::fs::remove_dir_all(entry.path())?;
@@ -85,12 +82,23 @@ fn cleanup_dirs(path: &Path, to: Option<&Path>, debug: bool) -> Result<()> {
     Ok(())
 }
 
+const IGNORED_FILES: [&str; 1] = [".DS_STORE"];
+
+fn not_ignored(entry: &DirEntry) -> bool {
+    entry
+        .file_name()
+        .to_str()
+        .map(|s| !IGNORED_FILES.contains(&s))
+        .unwrap_or(false)
+}
+
 fn move_files(path: &Path, to: &Path, debug: bool) -> Result<()> {
     WalkDir::new(path)
         .max_depth(1)
         .into_iter()
         .flatten()
         .filter(|entry| entry.path().is_file())
+        .filter(not_ignored)
         .for_each(|entry| {
             let from = entry.path();
             std::fs::copy(from, to.join(entry.file_name())).unwrap();
@@ -132,7 +140,7 @@ pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>, _debug: bo
 
     let name_re = Regex::new(NAME_PATTERN)?;
 
-    let folders = WalkDir::new(path).max_depth(1).into_iter();
+    let folders = WalkDir::new(path).max_depth(1).into_iter().skip(1);
     let mut result = File::create(target_dir.join("result.csv"))?;
 
     for folder in folders.flatten() {

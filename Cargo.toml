@@ -2,6 +2,8 @@
 name = "tutors"
 version = "1.0.0"
 edition = "2021"
+license = "MIT"
+description = "Small cli tool to make a tutors life easier"
 
 [[bin]]
 name = "tutors"
@@ -12,8 +14,16 @@ path = "src/tuto.rs"
 
 [dependencies]
 anyhow = "1.0.75"
-clap = { version = "4.4.10", features = ["derive"] }
+clap = { version = "4.4.11", features = ["derive"] }
 regex = "1.10.2"
 walkdir = "2.4.0"
 zip = "0.6.6"
 zip-extensions = "0.6.2"
+
+
+# Learn more about generate-rpm at https://crates.io/crates/cargo-generate-rpm
+
+[package.metadata.generate-rpm]
+assets = [
+	{ source = "target/release/tutors", dest = "/usr/bin/tutors", mode = "755" },	
+]
