@@ -116,11 +116,11 @@ fn move_files(path: &Path, to: &Path, debug: bool) -> Result<()> {
 }
 
 pub fn zipit(_name: Option<String>, _paths: Vec<PathBuf>) -> Result<()> {
-    todo!()
+    return Err(anyhow::anyhow!("Not yet implemented"));
 }
 
 pub fn stats() -> Result<()> {
-    todo!()
+    return Err(anyhow::anyhow!("Not yet implemented"));
 }
 
 const DEFAULT_MAX_POINTS: u8 = 25;

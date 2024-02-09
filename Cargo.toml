@@ -21,6 +21,14 @@ zip = "0.6.6"
 zip-extensions = "0.6.2"
 
 
+[profile.release]
+debug = false
+strip = true
+opt-level = 3
+codegen-units = 1
+lto = true
+panic = 'abort'
+
 # Learn more about generate-rpm at https://crates.io/crates/cargo-generate-rpm
 
 [package.metadata.generate-rpm]
