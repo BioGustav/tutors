@@ -42,7 +42,6 @@ jobs:
 
       - name: build release
         run: cargo build \
-            --frozen \
             --verbose \
             --release \
             --bin tutors \
