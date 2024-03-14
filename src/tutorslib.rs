@@ -8,124 +8,13 @@ use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 use zip::ZipArchive;
 
-pub fn unzip(path: &PathBuf, single: bool, target: Option<&PathBuf>, debug: bool) -> Result<()> {
-    //dbg!(&path, &single, &target);
-
-    let file_name = Path::new(".").join(path.file_stem().unwrap());
-    let target = match target {
-        Some(path_buf) => path_buf.as_path(),
-        None => &file_name,
-    };
-
-    let mut archive = ZipArchive::new(File::open(path)?)?;
-    archive.extract(target)?;
-
-    // No more work to be done in single mode
-    if single {
-        return Ok(());
-    }
-
-    let walkdir = WalkDir::new(target).into_iter();
-
-    for entry in walkdir.flatten() {
-        if is_zip_file(&entry) {
-            let path = entry.path().to_path_buf();
-            let parent = path.parent().unwrap();
-            let target = parent.join(Path::new("korrektur"));
-
-            if debug {
-                log("Unzipping", vec![("path", target.to_str().unwrap_or(""))]);
-            }
-
-            unzip(&path, true, Some(&target), debug)?;
-            std::fs::remove_file(path)?;
-            cleanup_dirs(target.as_path(), None, debug)?;
-        }
-    }
-
-    Ok(())
-}
-
-fn is_zip_file(entry: &DirEntry) -> bool {
-    entry
-        .file_name()
-        .to_str()
-        .map(|s| s.ends_with(".zip"))
-        .unwrap_or(false)
-}
-
-fn cleanup_dirs(path: &Path, to: Option<&Path>, debug: bool) -> Result<()> {
-    let walkdir = WalkDir::new(path)
-        .max_depth(1)
-        .into_iter()
-        .flatten()
-        .filter(|entry| entry.path().is_dir())
-        .skip(1); // Skip the root directory
-
-    for entry in walkdir {
-        if entry.path().ends_with("__MACOSX") {
-            if debug {
-                log(
-                    "Removing",
-                    vec![("path", entry.path().to_str().unwrap_or(""))],
-                );
-            }
-            std::fs::remove_dir_all(entry.path())?;
-        } else {
-            let to = to.unwrap_or_else(|| entry.path().parent().unwrap_or(Path::new("/")));
-            cleanup_dirs(entry.path(), Some(to), debug)?;
-            move_files(entry.path(), to, debug)?;
-            std::fs::remove_dir_all(entry.path())?;
-        }
-    }
-
-    Ok(())
-}
-
-const IGNORED_FILES: [&str; 1] = [".DS_STORE"];
-
-fn not_ignored(entry: &DirEntry) -> bool {
-    entry
-        .file_name()
-        .to_str()
-        .map(|s| !IGNORED_FILES.contains(&s))
-        .unwrap_or(false)
-}
-
-fn move_files(path: &Path, to: &Path, debug: bool) -> Result<()> {
-    WalkDir::new(path)
-        .max_depth(1)
-        .into_iter()
-        .flatten()
-        .filter(|entry| entry.path().is_file())
-        .filter(not_ignored)
-        .for_each(|entry| {
-            let from = entry.path();
-            std::fs::copy(from, to.join(entry.file_name())).unwrap();
-            if debug {
-                log(
-                    "Moving",
-                    vec![
-                        ("from", from.to_str().unwrap_or("")),
-                        ("to", to.to_str().unwrap_or("")),
-                    ],
-                );
-            }
-        });
-    Ok(())
-}
-
-pub fn zipit(_name: Option<String>, _paths: Vec<PathBuf>) -> Result<()> {
-    return Err(anyhow::anyhow!("Not yet implemented"));
-}
-
-pub fn stats() -> Result<()> {
-    return Err(anyhow::anyhow!("Not yet implemented"));
-}
-
-const DEFAULT_MAX_POINTS: u8 = 25;
-const TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
-const NAME_PATTERN: &str = r"([^\d_]*)";
+consts!(
+    COUNTED_FILES: [&str; 1] = ["java"];
+    DEFAULT_MAX_POINTS: u8 = 25;
+    IGNORED_NAMES: [&str; 6] = ["__macosx", ".git", ".idea", ".ds_store", ".iml", ".class"];
+    NAME_PATTERN: &str = r"([^\d_]*)";
+    TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
+);
 
 pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>, _debug: bool) -> Result<()> {
     //dbg!(&path, max_points);
@@ -159,7 +48,11 @@ pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>, _debug: bo
         let file_walker = WalkDir::new(folder).into_iter();
         let mut points = *max_points as f32;
         for dir in file_walker.flatten() {
-            if dir.path().extension().is_some_and(|ext| ext.eq("java")) {
+            if dir
+                .path()
+                .extension()
+                .is_some_and(|ext| COUNTED_FILES.contains(&ext.to_str().unwrap()))
+            {
                 let file = File::open(dir.path())?;
                 let file = BufReader::new(file);
 
@@ -171,6 +64,62 @@ pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>, _debug: bo
     }
 
     Ok(())
+}
+
+pub fn unzip(
+    path: &PathBuf,
+    single: bool,
+    flatten: bool,
+    target: Option<&PathBuf>,
+    debug: bool,
+) -> Result<()> {
+    let file_name = Path::new(".").join(path.file_stem().unwrap());
+    let target = match target {
+        Some(path_buf) => path_buf.as_path(),
+        None => &file_name,
+    };
+
+    let mut archive = ZipArchive::new(File::open(path)?)?;
+    archive.extract(target)?;
+
+    // No more work to be done in single mode
+    if single {
+        std::fs::remove_file(path)?;
+        return Ok(());
+    }
+
+    let walkdir = WalkDir::new(target).into_iter();
+
+    for entry in walkdir.flatten() {
+        if is_zip_file(&entry) {
+            let path = entry.path().to_path_buf();
+            let parent = path.parent().unwrap();
+            let target = &parent.to_path_buf();
+
+            dbglog!(debug, "Unzipping", "path", target.to_str().unwrap_or(""));
+
+            unzip(&path, true, flatten, Some(target), debug)?;
+
+            clean_dirs(target, debug)?;
+
+            if flatten {
+                flatten_dirs(target, None, debug)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn _generate_report() -> Result<()> {
+    Err(anyhow::anyhow!("Not yet implemented"))
+}
+
+pub fn stats() -> Result<()> {
+    Err(anyhow::anyhow!("Not yet implemented"))
+}
+pub fn zipit(_name: Option<String>, _paths: Vec<PathBuf>) -> Result<()> {
+    Err(anyhow::anyhow!("Not yet implemented"))
 }
 
 fn calculate_deduction(file: BufReader<File>) -> Result<f32> {
@@ -189,6 +138,67 @@ fn calculate_deduction(file: BufReader<File>) -> Result<f32> {
     Ok(result)
 }
 
+fn clean_dirs(path: &Path, debug: bool) -> Result<()> {
+    let walkdir = WalkDir::new(path).into_iter().flatten().filter(|entry| {
+        IGNORED_NAMES.iter().any(|name| {
+            entry
+                .file_name()
+                .to_str()
+                .unwrap()
+                .to_lowercase()
+                .contains(name)
+        })
+    });
+    for entry in walkdir {
+        dbglog!(
+            debug,
+            "Removing",
+            "path",
+            entry.path().to_str().unwrap_or("")
+        );
+
+        if entry.path().is_file() {
+            std::fs::remove_file(entry.path())?;
+        } else {
+            std::fs::remove_dir_all(entry.path())?;
+        }
+    }
+
+    Ok(())
+}
+fn flatten_dirs(path: &Path, to: Option<&Path>, debug: bool) -> Result<()> {
+    let walkdir = WalkDir::new(path)
+        .max_depth(1)
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.path().is_dir())
+        .skip(1); // Skip the root directory
+
+    for entry in walkdir {
+        dbglog!(
+            debug,
+            "Flatten",
+            "path",
+            entry.path().to_str().unwrap_or("")
+        );
+
+        let to = to.unwrap_or_else(|| entry.path().parent().unwrap_or(Path::new("/")));
+        flatten_dirs(entry.path(), Some(to), debug)?;
+        move_files(entry.path(), to, debug)?;
+        std::fs::remove_dir_all(entry.path())?;
+    }
+
+    Ok(())
+}
+
+fn is_zip_file(entry: &DirEntry) -> bool {
+    entry
+        .file_name()
+        .to_str()
+        .map(|s| s.ends_with(".zip"))
+        .unwrap_or(false)
+}
+
 fn log(command: &str, args: Vec<(&str, &str)>) {
     let mut prefix = "";
     let args = args.iter().fold(String::new(), |mut acc, (key, value)| {
@@ -197,4 +207,39 @@ fn log(command: &str, args: Vec<(&str, &str)>) {
         acc
     });
     println!("{:9}: {}", command, args);
+}
+
+fn move_files(path: &Path, to: &Path, debug: bool) -> Result<()> {
+    WalkDir::new(path)
+        .max_depth(1)
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.path().is_file())
+        .filter(not_ignored)
+        .for_each(|entry| {
+            let from = entry.path();
+            std::fs::copy(from, to.join(entry.file_name())).unwrap();
+
+            dbglog!(
+                debug,
+                "Moving",
+                "from",
+                from.to_str().unwrap_or(""),
+                "to",
+                to.to_str().unwrap_or("")
+            );
+        });
+    Ok(())
+}
+
+fn not_ignored(entry: &DirEntry) -> bool {
+    entry
+        .file_name()
+        .to_str()
+        .map(|s| {
+            !IGNORED_NAMES
+                .iter()
+                .any(|name| s.to_lowercase().contains(name))
+        })
+        .unwrap_or(false)
 }

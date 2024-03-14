@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+#[macro_use]
+mod tutorsmacros;
 mod tutorslib;
 
 #[derive(Parser)]
@@ -29,10 +31,13 @@ enum Commands {
     /// Unzip outer and inner containers
     Unzip {
         path: PathBuf,
-        /// unzip only outermost zip
+        /// Unzip only outermost zip
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         single: bool,
-        /// Specify the target directory [default: ./<FILE_NAME>]
+        /// Flatten the directory structure
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        flatten: bool,
+        /// Specify the target directory to unzip to [default: ./<FILE_NAME>]
         #[arg(short, long)]
         target: Option<PathBuf>,
     },
@@ -52,17 +57,16 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    if cli.debug {
-        println!("{:?}", &cli.command);
-    }
+    dbglog!(cli.debug, "Command", &cli.command);
 
     match cli.command {
         Commands::Zip { name, paths } => tutorslib::zipit(name, paths),
         Commands::Unzip {
             path,
             single,
+            flatten,
             target,
-        } => tutorslib::unzip(&path, single, target.as_ref(), cli.debug),
+        } => tutorslib::unzip(&path, single, flatten, target.as_ref(), cli.debug),
         Commands::Count {
             path,
             target_dir,
