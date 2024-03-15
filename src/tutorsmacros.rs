@@ -10,16 +10,3 @@ macro_rules! dbglog {
         }
     }
 }
-
-macro_rules! consts {
-    ( $( $name:ident: $type:ty = $val:expr; )* ) => {
-        $(
-            const $name: $type = $val;
-        )*
-    };
-    (pub $( $name:ident: $type:ty = $val:expr; )* ) => {
-        $(
-            pub const $name: $type = $val;
-        )*
-    };
-}

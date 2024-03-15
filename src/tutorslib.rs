@@ -8,13 +8,11 @@ use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 use zip::ZipArchive;
 
-consts!(
-    COUNTED_FILES: [&str; 1] = ["java"];
-    DEFAULT_MAX_POINTS: u8 = 25;
-    IGNORED_NAMES: [&str; 6] = ["__macosx", ".git", ".idea", ".ds_store", ".iml", ".class"];
-    NAME_PATTERN: &str = r"([^\d_]*)";
-    TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
-);
+const COUNTED_FILES: [&str; 1] = ["java"];
+const DEFAULT_MAX_POINTS: u8 = 25;
+const IGNORED_NAMES: [&str; 6] = ["__macosx", ".git", ".idea", ".ds_store", ".iml", ".class"];
+const NAME_PATTERN: &str = r"([^\d_]*)";
+const TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
 
 pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>, _debug: bool) -> Result<()> {
     //dbg!(&path, max_points);
