@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 
 #[macro_use]
 mod tutorsmacros;
+mod tutors_csv;
 mod tutorslib;
 
 #[derive(Parser)]
@@ -50,6 +51,13 @@ enum Commands {
         #[arg(short, long)]
         max_points: Option<u8>,
     },
+    Fill {
+        /// Path to the table file
+        table_path: PathBuf,
+        /// Path to the directory containing the student submissions
+        #[arg(short, long, default_value = ".")]
+        dir_path: PathBuf,
+    },
     Stats,
 }
 
@@ -72,6 +80,10 @@ fn main() -> Result<()> {
             target_dir,
             max_points,
         } => tutorslib::count(&path, &target_dir, &max_points, cli.debug),
+        Commands::Fill {
+            table_path,
+            dir_path,
+        } => tutorslib::fill_table(table_path.as_path(), dir_path.as_path(), cli.debug),
         Commands::Stats => tutorslib::stats(),
     }
 }

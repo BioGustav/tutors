@@ -1,16 +1,22 @@
+use std::collections::HashMap;
 use std::fs::{create_dir, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use csv::StringRecord;
 use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 use zip::ZipArchive;
+use crate::tutors_csv::ID_PATTERN;
 
 const COUNTED_FILES: [&str; 1] = ["java"];
 const DEFAULT_MAX_POINTS: u8 = 25;
 const IGNORED_NAMES: [&str; 6] = ["__macosx", ".git", ".idea", ".ds_store", ".iml", ".class"];
+const _INDEX_FEEDBACK: usize = 10;
+const _INDEX_MAX_POINTS: usize = 6;
+const _INDEX_POINTS: usize = 5;
 const NAME_PATTERN: &str = r"([^\d_]*)";
 const TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
 
@@ -109,13 +115,80 @@ pub fn unzip(
     Ok(())
 }
 
-pub fn _generate_report() -> Result<()> {
-    Err(anyhow::anyhow!("Not yet implemented"))
+
+pub fn fill_table(table_path: &Path, dir_path: &Path, _debug: bool) -> Result<()> {
+    if !table_path.exists()
+        || !table_path.is_file()
+        || !table_path.extension().is_some_and(|ext| ext == "csv")
+    {
+        return Err(anyhow::anyhow!("Table path not valid"));
+    }
+
+    let id_re = Regex::new(ID_PATTERN)?;
+    let walkdir = WalkDir::new(dir_path).max_depth(1).into_iter();
+
+    let mut table = csv::Reader::from_path(table_path)?;
+    let ids_to_records: HashMap<String, StringRecord> = table
+        .records()
+        .filter_map(|record| record.ok())
+        .map(|record| {
+            let id = record.get(0).unwrap();
+            let id = id_re
+                .captures(id)
+                .unwrap()
+                .get(1)
+                .unwrap()
+                .as_str()
+                .to_string();
+            (id, record)
+        })
+        .collect();
+
+    walkdir
+        .skip(1)
+        .flatten()
+        .filter(|entry| entry.path().is_dir())
+        .map(|entry| {
+            let entry = entry.path();
+            let id = match entry.file_stem() {
+                Some(name) => name.to_str().unwrap(),
+                None => return Err(anyhow::anyhow!("Invalid file name")),
+            };
+            let id = id_re
+                .captures(id)
+                .unwrap()
+                .get(1)
+                .unwrap()
+                .as_str()
+                .to_string();
+            Ok((id, entry.to_path_buf()))
+        })
+        .for_each(|entry| {
+            let (id, path) = entry.unwrap();
+            let record = ids_to_records.get(&id).unwrap();
+            let _max_points = record.get(_INDEX_MAX_POINTS).unwrap();
+            
+            let walkdir = WalkDir::new(path).into_iter();
+            let mut deducted_points = 0f32;
+            walkdir.flatten().filter(|entry| entry.path().is_file()).for_each(|entry| {
+                let file = File::open(entry.path()).unwrap();
+                let file = BufReader::new(file);
+                deducted_points += calculate_deduction(file).unwrap();
+            });
+            println!("{:?}, {:?}",&id, &deducted_points);
+            
+            let _points = record.get(_INDEX_POINTS).unwrap().parse::<f32>().unwrap() - deducted_points;
+            
+            
+        });
+
+    Ok(())
 }
 
 pub fn stats() -> Result<()> {
     Err(anyhow::anyhow!("Not yet implemented"))
 }
+
 pub fn zipit(_name: Option<String>, _paths: Vec<PathBuf>) -> Result<()> {
     Err(anyhow::anyhow!("Not yet implemented"))
 }
@@ -127,7 +200,7 @@ fn calculate_deduction(file: BufReader<File>) -> Result<f32> {
     for line in file.lines().map_while(Result::ok) {
         tut_re.captures_iter(&line).for_each(|cap| {
             if let Some(deduction) = cap.get(2) {
-                let deduction = deduction.as_str().parse::<f32>().unwrap_or(0.);
+                let deduction = deduction.as_str().parse::<f32>().unwrap_or(0f32);
                 result += deduction;
             }
         });
@@ -164,6 +237,7 @@ fn clean_dirs(path: &Path, debug: bool) -> Result<()> {
 
     Ok(())
 }
+
 fn flatten_dirs(path: &Path, to: Option<&Path>, debug: bool) -> Result<()> {
     let walkdir = WalkDir::new(path)
         .max_depth(1)
