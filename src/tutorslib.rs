@@ -5,11 +5,11 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use csv::StringRecord;
 use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 use zip::ZipArchive;
-use crate::tutors_csv::ID_PATTERN;
+
+use crate::tutors_csv::Record;
 
 const COUNTED_FILES: [&str; 1] = ["java"];
 const DEFAULT_MAX_POINTS: u8 = 25;
@@ -115,8 +115,12 @@ pub fn unzip(
     Ok(())
 }
 
-
-pub fn fill_table(table_path: &Path, dir_path: &Path, _debug: bool) -> Result<()> {
+pub fn fill_table(
+    table_path: &Path,
+    dir_path: &Path,
+    result_path: &Path,
+    _debug: bool,
+) -> Result<()> {
     if !table_path.exists()
         || !table_path.is_file()
         || !table_path.extension().is_some_and(|ext| ext == "csv")
@@ -124,65 +128,52 @@ pub fn fill_table(table_path: &Path, dir_path: &Path, _debug: bool) -> Result<()
         return Err(anyhow::anyhow!("Table path not valid"));
     }
 
-    let id_re = Regex::new(ID_PATTERN)?;
-    let walkdir = WalkDir::new(dir_path).max_depth(1).into_iter();
+    let dirs = get_dirs(dir_path)?;
 
-    let mut table = csv::Reader::from_path(table_path)?;
-    let ids_to_records: HashMap<String, StringRecord> = table
-        .records()
-        .filter_map(|record| record.ok())
-        .map(|record| {
-            let id = record.get(0).unwrap();
-            let id = id_re
-                .captures(id)
-                .unwrap()
-                .get(1)
-                .unwrap()
-                .as_str()
-                .to_string();
-            (id, record)
-        })
-        .collect();
+    let mut wtr = csv::WriterBuilder::new()
+        .delimiter(b',')
+        .from_path(result_path)?;
 
-    walkdir
-        .skip(1)
-        .flatten()
-        .filter(|entry| entry.path().is_dir())
-        .map(|entry| {
-            let entry = entry.path();
-            let id = match entry.file_stem() {
-                Some(name) => name.to_str().unwrap(),
-                None => return Err(anyhow::anyhow!("Invalid file name")),
-            };
-            let id = id_re
-                .captures(id)
-                .unwrap()
-                .get(1)
-                .unwrap()
-                .as_str()
-                .to_string();
-            Ok((id, entry.to_path_buf()))
+    read_table(table_path)?
+        .iter_mut()
+        .flat_map(|record| match dirs.get(&record.id) {
+            Some(dir) => Some((record, dir)),
+            _ => None,
         })
-        .for_each(|entry| {
-            let (id, path) = entry.unwrap();
-            let record = ids_to_records.get(&id).unwrap();
-            let _max_points = record.get(_INDEX_MAX_POINTS).unwrap();
-            
-            let walkdir = WalkDir::new(path).into_iter();
-            let mut deducted_points = 0f32;
-            walkdir.flatten().filter(|entry| entry.path().is_file()).for_each(|entry| {
-                let file = File::open(entry.path()).unwrap();
-                let file = BufReader::new(file);
-                deducted_points += calculate_deduction(file).unwrap();
-            });
-            println!("{:?}, {:?}",&id, &deducted_points);
-            
-            let _points = record.get(_INDEX_POINTS).unwrap().parse::<f32>().unwrap() - deducted_points;
-            
-            
+        .map(|(r, d)| {
+            let deduction = sum_deduction(d).unwrap_or(0f32);
+            let points = 0f32.max(r.max_points - deduction);
+            r.points = Some(points);
+            r
+        })
+        .for_each(|record| {
+            wtr.serialize(record).unwrap();
         });
 
     Ok(())
+}
+
+fn sum_deduction(dir_path: &Path) -> Result<f32> {
+    let file_walker = WalkDir::new(dir_path)
+        .into_iter()
+        .flatten()
+        .map(|entry| entry.path().to_path_buf())
+        .filter(|path| {
+            path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|ext| COUNTED_FILES.contains(&ext.to_str().unwrap_or_default()))
+        });
+
+    let mut points = 0f32;
+    for file in file_walker {
+        let file = File::open(file)?;
+        let file = BufReader::new(file);
+
+        points -= calculate_deduction(file)?;
+    }
+
+    Ok(points)
 }
 
 pub fn stats() -> Result<()> {
@@ -314,4 +305,62 @@ fn not_ignored(entry: &DirEntry) -> bool {
                 .any(|name| s.to_lowercase().contains(name))
         })
         .unwrap_or(false)
+}
+
+fn read_table(table_path: &Path) -> Result<Vec<Record>> {
+    let mut reader = csv::ReaderBuilder::new()
+        .delimiter(b',')
+        .has_headers(true)
+        .from_path(table_path)?;
+
+    let vec = reader
+        .deserialize::<Record>()
+        .filter_map(Result::ok)
+        .collect();
+
+    Ok(vec)
+}
+
+const ID_PATTERN: &str = r"([\d]+)";
+fn get_dirs(dir_path: &Path) -> Result<HashMap<String, PathBuf>> {
+    let re = Regex::new(ID_PATTERN)?;
+    let walkdir = WalkDir::new(dir_path).max_depth(1).into_iter();
+
+    let map: HashMap<_, _> = walkdir
+        .skip(1)
+        .flatten()
+        .filter(|entry| entry.path().is_dir())
+        .flat_map(|entry| {
+            let entry = entry.path();
+            let name = entry.to_str().unwrap();
+            let cap = re.captures(name).unwrap().get(1);
+            match cap {
+                Some(cap) => Some((cap.as_str().to_string(), entry.to_path_buf())),
+                _ => None,
+            }
+        })
+        .collect();
+
+    Ok(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_count() -> Result<()> {
+        todo!()
+    }
+    fn test_unzip() -> Result<()> {
+        todo!()
+    }
+    fn test_fill_table() -> Result<()> {
+        todo!()
+    }
+    fn test_stats() -> Result<()> {
+        todo!()
+    }
+    fn test_zipit() -> Result<()> {
+        todo!()
+    }
 }

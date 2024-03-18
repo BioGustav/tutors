@@ -57,6 +57,8 @@ enum Commands {
         /// Path to the directory containing the student submissions
         #[arg(short, long, default_value = ".")]
         dir_path: PathBuf,
+        #[arg(short, long, default_value = "result.csv")]
+        result_path: PathBuf,
     },
     Stats,
 }
@@ -83,7 +85,13 @@ fn main() -> Result<()> {
         Commands::Fill {
             table_path,
             dir_path,
-        } => tutorslib::fill_table(table_path.as_path(), dir_path.as_path(), cli.debug),
+            result_path,
+        } => tutorslib::fill_table(
+            table_path.as_path(),
+            dir_path.as_path(),
+            result_path.as_path(),
+            cli.debug,
+        ),
         Commands::Stats => tutorslib::stats(),
     }
 }

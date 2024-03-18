@@ -1,13 +1,13 @@
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[allow(unused)]
-struct Record {
+pub struct Record {
     #[serde(rename = "ID")]
     #[serde(deserialize_with = "deserialize_id")]
     #[serde(serialize_with = "serialize_id")]
-    id: String,
+    pub id: String,
     #[serde(rename = "Vollständiger Name")]
     name: String,
     #[serde(rename = "ID-Nummer")]
@@ -17,13 +17,13 @@ struct Record {
     #[serde(rename = "Status")]
     status: String,
     #[serde(rename = "Bewertung")]
-    #[serde(deserialize_with = "deserialize_rating")]
-    #[serde(serialize_with = "serialize_rating")]
-    rating: Option<f32>,
+    #[serde(deserialize_with = "deserialize_points")]
+    #[serde(serialize_with = "serialize_points")]
+    pub points: Option<f32>,
     #[serde(rename = "Bestwertung")]
-    #[serde(deserialize_with = "deserialize_best_rating")]
-    #[serde(serialize_with = "serialize_best_rating")]
-    best_rating: f32,
+    #[serde(deserialize_with = "deserialize_max_points")]
+    #[serde(serialize_with = "serialize_max_points")]
+    pub max_points: f32,
     #[serde(rename = "Bewertung kann geändert werden")]
     rating_changeable: String,
     #[serde(rename = "Zuletzt geändert (Abgabe)")]
@@ -31,7 +31,7 @@ struct Record {
     #[serde(rename = "Zuletzt geändert (Bewertung)")]
     last_change_rating: String,
     #[serde(rename = "Feedback als Kommentar")]
-    feedback: String,
+    pub feedback: String,
 }
 
 const ID_PATTERN: &str = r"([\d]+)";
@@ -51,7 +51,7 @@ where
         Err(serde::de::Error::custom("Invalid ID"))
     }
 }
-fn deserialize_best_rating<'de, D>(deserializer: D) -> Result<f32, D::Error>
+fn deserialize_max_points<'de, D>(deserializer: D) -> Result<f32, D::Error>
     where
         D: Deserializer<'de>,
 {
@@ -63,7 +63,7 @@ fn deserialize_best_rating<'de, D>(deserializer: D) -> Result<f32, D::Error>
     };
 }
 
-fn deserialize_rating<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
+fn deserialize_points<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
     where
         D: Deserializer<'de>,
 {
@@ -86,19 +86,19 @@ where
     serializer.serialize_str(&id.to_string())
 }
 
-fn serialize_best_rating<S>(rating: &f32, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_max_points<S>(rating: &f32, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
     serializer.serialize_str(&format!("{:.2}", rating).replace(".", ","))
 }
 
-fn serialize_rating<S>(rating: &Option<f32>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_points<S>(rating: &Option<f32>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
     match rating {
-        Some(rating) => serialize_best_rating(rating, serializer),
+        Some(rating) => serialize_max_points(rating, serializer),
         None => serializer.serialize_str(""),
     }
 }
@@ -148,8 +148,8 @@ mod tests {
                 id_number: 12345678.to_string(),
                 email: "K12345678@students.jku.at".to_string(),
                 status: "Zur Bewertung abgegeben".to_string(),
-                rating: Some(13.5),
-                best_rating: 24.0,
+                points: Some(13.5),
+                max_points: 24.0,
                 rating_changeable: "Ja".to_string(),
                 last_change_submission: "Mittwoch, 13. März 2024, 10:15".to_string(),
                 last_change_rating: "Mittwoch, 13. März 2024, 19:59".to_string(),
@@ -161,8 +161,8 @@ mod tests {
                 id_number: 87654321.to_string(),
                 email: "K87654321@students.jku.at".to_string(),
                 status: "Zur Bewertung abgegeben".to_string(),
-                rating: None,
-                best_rating: 24.0,
+                points: None,
+                max_points: 24.0,
                 rating_changeable: "Ja".to_string(),
                 last_change_submission: "Mittwoch, 13. März 2024, 15:10".to_string(),
                 last_change_rating: "Mittwoch, 13. März 2024, 19:59".to_string(),
