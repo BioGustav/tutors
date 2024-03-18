@@ -19,6 +19,7 @@ const _INDEX_MAX_POINTS: usize = 6;
 const _INDEX_POINTS: usize = 5;
 const NAME_PATTERN: &str = r"([^\d_]*)";
 const TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
+const FEEDBACK: &str = "Bewertung siehe Feedbackdateien.";
 
 pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>, _debug: bool) -> Result<()> {
     //dbg!(&path, max_points);
@@ -141,6 +142,7 @@ pub fn fill_table(
             let deduction = sum_deduction(d).unwrap_or(0f32);
             let points = 0f32.max(r.max_points - deduction);
             r.points = Some(points);
+            r.feedback = FEEDBACK.to_string();
             r
         })
         .for_each(|record| {
