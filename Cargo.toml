@@ -9,9 +9,6 @@ description = "Small cli tool to make a tutors life easier"
 name = "tutors"
 path = "src/tuto.rs"
 
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.4.11", features = ["derive"] }
