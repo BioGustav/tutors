@@ -52,26 +52,26 @@ where
     }
 }
 fn deserialize_max_points<'de, D>(deserializer: D) -> Result<f32, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    let s = s.replace(",", ".");
-    return match s.parse() {
+    let s = s.replace(',', ".");
+    match s.parse() {
         Ok(f) => Ok(f),
         Err(_) => Err(serde::de::Error::custom("Invalid rating")),
-    };
+    }
 }
 
 fn deserialize_points<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
     if s.is_empty() {
         Ok(None)
     } else {
-        s.replace(",", ".")
+        s.replace(',', ".")
             .parse()
             .map(Some)
             .map_err(serde::de::Error::custom)
@@ -90,7 +90,7 @@ fn serialize_max_points<S>(rating: &f32, serializer: S) -> Result<S::Ok, S::Erro
 where
     S: serde::Serializer,
 {
-    serializer.serialize_str(&format!("{:.2}", rating).replace(".", ","))
+    serializer.serialize_str(&format!("{:.2}", rating).replace('.', ","))
 }
 
 fn serialize_points<S>(rating: &Option<f32>, serializer: S) -> Result<S::Ok, S::Error>

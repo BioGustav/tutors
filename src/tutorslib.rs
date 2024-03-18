@@ -136,10 +136,7 @@ pub fn fill_table(
 
     read_table(table_path)?
         .iter_mut()
-        .flat_map(|record| match dirs.get(&record.id) {
-            Some(dir) => Some((record, dir)),
-            _ => None,
-        })
+        .flat_map(|record| dirs.get(&record.id).map(|dir| (record, dir)))
         .map(|(r, d)| {
             let deduction = sum_deduction(d).unwrap_or(0f32);
             let points = 0f32.max(r.max_points - deduction);
@@ -334,10 +331,7 @@ fn get_dirs(dir_path: &Path) -> Result<HashMap<String, PathBuf>> {
             let entry = entry.path();
             let name = entry.to_str().unwrap();
             let cap = re.captures(name).unwrap().get(1);
-            match cap {
-                Some(cap) => Some((cap.as_str().to_string(), entry.to_path_buf())),
-                _ => None,
-            }
+            cap.map(|cap| (cap.as_str().to_string(), entry.to_path_buf()))
         })
         .collect();
 
