@@ -41,10 +41,7 @@ jobs:
         run: cargo install cargo-generate-rpm
 
       - name: build release
-        run: cargo build \
-            --release \
-            --bin tutors \
-            --manifest-path ./Cargo.toml
+        run: cargo build --release --bin tutors --manifest-path ./Cargo.toml
 
       - name: generate rpm package
         run: cargo generate-rpm
