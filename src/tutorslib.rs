@@ -164,15 +164,15 @@ fn sum_deduction(dir_path: &Path) -> Result<f32> {
                     .is_some_and(|ext| COUNTED_FILES.contains(&ext.to_str().unwrap_or_default()))
         });
 
-    let mut points = 0f32;
+    let mut deduction = 0f32;
     for file in file_walker {
         let file = File::open(file)?;
         let file = BufReader::new(file);
 
-        points -= calculate_deduction(file)?;
+        deduction += calculate_deduction(file)?;
     }
 
-    Ok(points)
+    Ok(deduction)
 }
 
 pub fn stats() -> Result<()> {
