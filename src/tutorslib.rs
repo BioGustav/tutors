@@ -14,11 +14,10 @@ use crate::tutors_csv::Record;
 const COUNTED_FILES: [&str; 1] = ["java"];
 const DEFAULT_MAX_POINTS: u8 = 25;
 const IGNORED_NAMES: [&str; 6] = ["__macosx", ".git", ".idea", ".ds_store", ".iml", ".class"];
-const _INDEX_FEEDBACK: usize = 10;
-const _INDEX_MAX_POINTS: usize = 6;
-const _INDEX_POINTS: usize = 5;
+const ID_PATTERN: &str = r"([\d]+)";
 const NAME_PATTERN: &str = r"([^\d_]*)";
 const TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
+
 const FEEDBACK: &str = "Bewertung siehe Feedbackdateien.";
 
 pub fn count(path: &Path, target_dir: &Path, max_points: &Option<u8>, _debug: bool) -> Result<()> {
@@ -150,29 +149,6 @@ pub fn fill_table(
         });
 
     Ok(())
-}
-
-fn sum_deduction(dir_path: &Path) -> Result<f32> {
-    let file_walker = WalkDir::new(dir_path)
-        .into_iter()
-        .flatten()
-        .map(|entry| entry.path().to_path_buf())
-        .filter(|path| {
-            path.is_file()
-                && path
-                    .extension()
-                    .is_some_and(|ext| COUNTED_FILES.contains(&ext.to_str().unwrap_or_default()))
-        });
-
-    let mut deduction = 0f32;
-    for file in file_walker {
-        let file = File::open(file)?;
-        let file = BufReader::new(file);
-
-        deduction += calculate_deduction(file)?;
-    }
-
-    Ok(deduction)
 }
 
 pub fn stats() -> Result<()> {
@@ -415,7 +391,28 @@ fn read_table(table_path: &Path) -> Result<Vec<Record>> {
     Ok(vec)
 }
 
-const ID_PATTERN: &str = r"([\d]+)";
+fn sum_deduction(dir_path: &Path) -> Result<f32> {
+    let file_walker = WalkDir::new(dir_path)
+        .into_iter()
+        .flatten()
+        .map(|entry| entry.path().to_path_buf())
+        .filter(|path| {
+            path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|ext| COUNTED_FILES.contains(&ext.to_str().unwrap_or_default()))
+        });
+
+    let mut deduction = 0f32;
+    for file in file_walker {
+        let file = File::open(file)?;
+        let file = BufReader::new(file);
+
+        deduction += calculate_deduction(file)?;
+    }
+
+    Ok(deduction)
+}
 fn get_dirs(dir_path: &Path) -> Result<HashMap<String, PathBuf>> {
     let re = Regex::new(ID_PATTERN)?;
     let walkdir = WalkDir::new(dir_path).max_depth(1).into_iter();
