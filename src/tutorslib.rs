@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs::{create_dir, File};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -89,7 +89,7 @@ pub fn unzip(
 
     // No more work to be done in single mode
     if single {
-        std::fs::remove_file(path)?;
+        //std::fs::remove_file(path)?;
         return Ok(());
     }
 
@@ -179,8 +179,104 @@ pub fn stats() -> Result<()> {
     Err(anyhow::anyhow!("Not yet implemented"))
 }
 
-pub fn zipit(_name: Option<String>, _paths: Vec<PathBuf>) -> Result<()> {
-    Err(anyhow::anyhow!("Not yet implemented"))
+pub fn zipit(name: String, path: &Path, target_dir: Option<&PathBuf>) -> Result<()> {
+    let mut buffer = Vec::new();
+    let options = zip::write::FileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .unix_permissions(0o755);
+
+    let submissions = WalkDir::new(path).max_depth(1).into_iter().skip(1);
+
+    for submission in submissions.flatten() {
+        let inner_path = submission.path().join(&name).with_extension("zip");
+        let inner_file = File::create(&inner_path)?;
+        let mut inner_archive = zip::ZipWriter::new(inner_file);
+        let feedback_files = WalkDir::new(submission.path())
+            .into_iter()
+            .skip(1)
+            .flatten()
+            .filter(|entry| {
+                let path = entry.path();
+                !path.extension().is_some_and(|ext| ext.eq("zip"))
+            });
+
+        // add files to feedback zip
+        for entry in feedback_files {
+            let path = entry.path();
+            let prefix = submission.path().to_str().unwrap();
+
+            add_to_archive(&mut inner_archive, path, prefix, &mut buffer, options)?;
+        }
+        inner_archive.finish()?;
+
+        // remove feedback directory -> only feedback zip and original submission zip should be left
+        WalkDir::new(submission.path())
+            .into_iter()
+            .skip(1)
+            .flatten()
+            .filter(|entry| {
+                let path = entry.path();
+                !path.extension().is_some_and(|ext| ext == "zip")
+            })
+            .for_each(|entry| {
+                if entry.path().is_file() {
+                    std::fs::remove_file(entry.path()).unwrap();
+                } else {
+                    std::fs::remove_dir_all(entry.path()).unwrap();
+                }
+            });
+    }
+
+    let feedbacks = WalkDir::new(path)
+        .into_iter()
+        .skip(1)
+        .flatten()
+        .filter(|entry| {
+            let path = entry.path();
+            !path.file_stem().is_some_and(|ext| ext.eq("feedbacks"))
+        });
+
+    
+    let target_dir = match target_dir {
+        Some(path) => path,
+        None => path.parent().unwrap(),
+    };
+    
+    let outer_zip = File::create(target_dir.join("feedbacks").with_extension("zip"))?;
+    let mut outer_archive = zip::ZipWriter::new(outer_zip);
+
+    for entry in feedbacks {
+        let prefix = path.to_str().unwrap();
+        let path = entry.path();
+
+        add_to_archive(&mut outer_archive, path, prefix, &mut buffer, options)?;
+    }
+    outer_archive.finish()?;
+    Ok(())
+}
+
+#[allow(deprecated)]
+fn add_to_archive(
+    archive: &mut zip::ZipWriter<File>,
+    path: &Path,
+    prefix: &str,
+    buffer: &mut Vec<u8>,
+    options: zip::write::FileOptions,
+) -> Result<()> {
+    let name = path.strip_prefix(prefix).unwrap();
+
+    if path.is_file() {
+        archive.start_file_from_path(name, options)?;
+        let mut file = File::open(path)?;
+        file.read_to_end(buffer)?;
+        archive.write_all(buffer)?;
+        buffer.clear();
+    } else {
+        // is_dir
+        archive.add_directory_from_path(name, options)?;
+    }
+
+    Ok(())
 }
 
 fn calculate_deduction(file: BufReader<File>) -> Result<f32> {

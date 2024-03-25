@@ -24,10 +24,15 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Zip {
-        #[arg(short, long)]
-        name: Option<String>,
+        /// Name of the feedback zip
+        #[arg(short, long, default_value = "feedback")]
+        name: String,
+        /// Directory containing all submissions and feedbacks
         #[arg(default_value = ".")]
-        paths: Vec<PathBuf>,
+        path: PathBuf,
+        /// Directory to store the resulting zip file [default: PATH/../]
+        #[arg(short, long)]
+        target_dir: Option<PathBuf>,
     },
     /// Unzip outer and inner containers
     Unzip {
@@ -70,7 +75,11 @@ fn main() -> Result<()> {
     dbglog!(cli.debug, "Command", &cli.command);
 
     match cli.command {
-        Commands::Zip { name, paths } => tutorslib::zipit(name, paths),
+        Commands::Zip {
+            name,
+            path,
+            target_dir,
+        } => tutorslib::zipit(name, path.as_path(), target_dir.as_ref()),
         Commands::Unzip {
             path,
             single,
