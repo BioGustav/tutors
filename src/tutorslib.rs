@@ -236,12 +236,11 @@ pub fn zipit(name: String, path: &Path, target_dir: Option<&PathBuf>) -> Result<
             !path.file_stem().is_some_and(|ext| ext.eq("feedbacks"))
         });
 
-    
     let target_dir = match target_dir {
         Some(path) => path,
         None => path.parent().unwrap(),
     };
-    
+
     let outer_zip = File::create(target_dir.join("feedbacks").with_extension("zip"))?;
     let mut outer_archive = zip::ZipWriter::new(outer_zip);
 
