@@ -13,8 +13,8 @@ use crate::tutors_csv::Record;
 
 const COUNTED_FILES: [&str; 1] = ["java"];
 const DEFAULT_MAX_POINTS: u8 = 25;
-const IGNORED_NAMES: [&str; 6] = ["__macosx", ".git", ".idea", ".ds_store", ".iml", ".class"];
 const ID_PATTERN: &str = r"([\d]+)";
+const IGNORED_NAMES: [&str; 6] = ["__macosx", ".git", ".idea", ".ds_store", ".iml", ".class"];
 const NAME_PATTERN: &str = r"([^\d_]*)";
 const TUTOR_PATTERN: &str = r"// Tutor: (-)?(\d*(\.\d)?)";
 
